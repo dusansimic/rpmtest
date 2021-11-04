@@ -71,7 +71,7 @@ log 'Update system'
 pexec dnf -y update
 
 log 'Install builddep and fedora packager'
-pexec dnf -y install 'dnf-command(builddep) fedora-packager'
+pexec dnf -y install 'dnf-plugins-core rpm-build'
 
 log 'Install build dependencies'
 pexec dnf -y builddep /root/rpmbuild/SPECS/"$spec_name"
