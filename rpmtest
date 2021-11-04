@@ -1,0 +1,87 @@
+#!/bin/sh
+
+help_function() {
+	echo ""
+	echo "Usage: rpmtest -i <image> [options] <spec directory>"
+	echo ""
+	echo "Options:"
+	echo " -i Image used for a build container"
+	echo " -n Name for the container"
+	echo " -s Spec filename (default: <spec directory>.spec)"
+	echo " -h Print this help"
+}
+
+while getopts 'i:n:d:s:h' opt; do
+	case "$opt" in
+		i) container_image="$OPTARG" ;;
+		n) container_name="$OPTARG" ;;
+		s) spec_name="$OPTARG" ;;
+		h) help_function; exit 0 ;;
+		?) help_function; exit 1 ;;
+	esac
+done
+
+shift $((OPTIND - 1))
+
+spec_directory="$1"
+
+if [ -z "$spec_directory" ]; then
+	echo 'You need to specify spec directory'
+fi
+
+if [ -z "$container_name" ]; then
+	container_name="rpm_test"
+fi
+
+if [ -z "$spec_name" ]; then
+	spec_name="$spec_directory.spec"
+fi
+
+pexec() {
+	podman exec "$container_name" $@ >> "$infologpath" 2>> "$errorlogpath"
+}
+
+log() {
+	echo "[rpmtest] $1"
+}
+
+mkdir -p "$HOME/rpmtest/logs"
+mkdir -p "$HOME/rpmtest/RPMS"
+mkdir -p "$HOME/rpmtest/SRPMS"
+
+infologpath="$HOME/rpmtest/logs/info.log"
+errorlogpath="$HOME/rpmtest/logs/error.log"
+
+cat /dev/null > "$infologpath"
+cat /dev/null > "$errorlogpath"
+
+log 'Pull image'
+podman pull "$container_image" >> "$infologpath" 2>> "$errorlogpath"
+
+log 'Start container'
+podman run \
+	--rm \
+	--name "$container_name" \
+	-v "$PWD/$spec_directory":/root/rpmbuild/SOURCES \
+	-v "$PWD/$spec_directory":/root/rpmbuild/SPECS \
+	-v "$HOME/rpmtest/RPMS":/root/rpmbuild/RPMS \
+	-v "$HOME/rpmtest/SRPMS":/root/rpmbuild/SRPMS \
+	-dt "$container_image" >> "$infologpath" 2>> "$errorlogpath"
+
+log 'Make cache of repos'
+pexec dnf makecache
+
+log 'Update system'
+pexec dnf -y update
+
+log 'Install builddep and fedora packager'
+pexec dnf -y install 'dnf-command(builddep) fedora-packager'
+
+log 'Install build dependencies'
+pexec dnf -y builddep /root/rpmbuild/SPECS/"$spec_name"
+
+log 'Build package'
+pexec rpmbuild --undefine=_disable_source_fetch -ba /root/rpmbuild/SPECS/"$spec_name"
+
+log 'Stopping container'
+podman stop "$container_name" >> "$infologpath" 2>> "$errorlogpath"
