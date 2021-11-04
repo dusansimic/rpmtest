@@ -25,10 +25,6 @@ shift $((OPTIND - 1))
 
 spec_directory="$1"
 
-if [ -z "$spec_directory" ]; then
-	echo 'You need to specify spec directory'
-fi
-
 if [ -z "$container_name" ]; then
 	container_name="rpm_test"
 fi
