@@ -34,7 +34,7 @@ if [ -z "$spec_name" ]; then
 fi
 
 pexec() {
-	podman exec "$container_name" $@ >> "$infologpath" 2>> "$errorlogpath"
+	podman exec "$container_name" $@ >> "$logpath"
 }
 
 log() {
@@ -45,14 +45,12 @@ mkdir -p "$HOME/rpmtest/logs"
 mkdir -p "$HOME/rpmtest/RPMS"
 mkdir -p "$HOME/rpmtest/SRPMS"
 
-infologpath="$HOME/rpmtest/logs/info.log"
-errorlogpath="$HOME/rpmtest/logs/error.log"
+logpath="$HOME/rpmtest/logs/$container_name.log"
 
-cat /dev/null > "$infologpath"
-cat /dev/null > "$errorlogpath"
+cat /dev/null > "$logpath"
 
 log 'Pull image'
-podman pull "$container_image" >> "$infologpath" 2>> "$errorlogpath"
+podman pull "$container_image" >> "$logpath"
 
 log 'Start container'
 podman run \
@@ -62,7 +60,7 @@ podman run \
 	-v "$PWD/$spec_directory":/root/rpmbuild/SPECS \
 	-v "$HOME/rpmtest/RPMS":/root/rpmbuild/RPMS \
 	-v "$HOME/rpmtest/SRPMS":/root/rpmbuild/SRPMS \
-	-dt "$container_image" >> "$infologpath" 2>> "$errorlogpath"
+	-dt "$container_image" >> "$logpath"
 
 log 'Make cache of repos'
 pexec dnf makecache
@@ -80,4 +78,4 @@ log 'Build package'
 pexec rpmbuild --undefine=_disable_source_fetch -ba /root/rpmbuild/SPECS/"$spec_name"
 
 log 'Stopping container'
-podman stop "$container_name" >> "$infologpath" 2>> "$errorlogpath"
+podman stop "$container_name" >> "$logpath"
